@@ -1,0 +1,48 @@
+#!/bin/bash
+
+# --------- CONFIGURATION ---------
+JAR_DIR="/opt/microservices"           # Path where all your JARs are stored
+JAR_NAMES=("service-a.jar" "service-b.jar" "service-c.jar")  # List of JARs
+JAVA_CMD="java -jar"
+DB_URL="$1"                            # DB URL passed as the first argument
+DB_USER="db_user"                      # Set your DB username
+DB_PASS="db_pass"                      # Set your DB password
+LOG_DIR="/opt/microservices/logs"     # Optional: where to store logs
+
+# --------- FUNCTION TO STOP SERVICES ---------
+stop_services() {
+  echo "Stopping existing microservices..."
+  for jar in "${JAR_NAMES[@]}"; do
+    pid=$(ps -ef | grep "$jar" | grep -v grep | awk '{print $2}')
+    if [ ! -z "$pid" ]; then
+      echo "Stopping $jar (PID: $pid)"
+      kill -9 "$pid"
+    fi
+  done
+}
+
+# --------- FUNCTION TO START SERVICES ---------
+start_services() {
+  echo "Starting microservices with DB: $DB_URL"
+  for jar in "${JAR_NAMES[@]}"; do
+    echo "Starting $jar ..."
+    nohup $JAVA_CMD "$JAR_DIR/$jar" \
+      --spring.datasource.url="$DB_URL" \
+      --spring.datasource.username="$DB_USER" \
+      --spring.datasource.password="$DB_PASS" \
+      > "$LOG_DIR/${jar%.jar}.log" 2>&1 &
+    sleep 2
+  done
+}
+
+# --------- MAIN ---------
+if [ -z "$DB_URL" ]; then
+  echo "Usage: $0 <DATABASE_URL>"
+  exit 1
+fi
+
+stop_services
+sleep 5
+start_services
+
+echo "✅ All services restarted with updated DB URL."
