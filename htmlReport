@@ -1,0 +1,191 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.*;
+
+public class RegressionReportGenerator {
+
+    static class TestCase {
+        String service;
+        String testCase;
+        String status;
+        String time;
+        String failureReason;
+
+        public TestCase(String service, String testCase, String status, String time, String failureReason) {
+            this.service = service;
+            this.testCase = testCase;
+            this.status = status;
+            this.time = time;
+            this.failureReason = failureReason;
+        }
+    }
+
+    public static void main(String[] args) {
+        List<TestCase> testCases = Arrays.asList(
+            new TestCase("service-a", "/api/users health check", "PASS", "120ms", null),
+            new TestCase("service-a", "/api/users get all", "PASS", "320ms", null),
+            new TestCase("service-b", "/api/orders create", "FAIL", "540ms", "Expected 201 but got 500"),
+            new TestCase("service-b", "/api/orders validation failed", "FAIL", "330ms", "Missing customer_id"),
+            new TestCase("service-c", "/api/inventory check", "PASS", "210ms", null),
+            new TestCase("service-c", "/api/inventory refresh", "SKIPPED", "0ms", null)
+        );
+
+        generateHtmlReport(testCases, "regression-report.html");
+        generateTextReport(testCases, "regression-report.txt");
+    }
+
+    public static void generateHtmlReport(List<TestCase> testCases, String fileName) {
+        int total = testCases.size();
+        int passed = 0, failed = 0, skipped = 0;
+        Set<String> uniqueServices = new TreeSet<>();
+        List<String> failureSummary = new ArrayList<>();
+
+        for (TestCase t : testCases) {
+            uniqueServices.add(t.service);
+            switch (t.status.toUpperCase()) {
+                case "PASS" -> passed++;
+                case "FAIL" -> {
+                    failed++;
+                    failureSummary.add(t.testCase + ": " + t.failureReason);
+                }
+                case "SKIPPED" -> skipped++;
+            }
+        }
+
+        String executionDate = LocalDate.now().toString();
+        String duration = "2m 12s"; // mock duration
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            writer.write("""
+                <html>
+                <head>
+                    <style>
+                        body { font-family: sans-serif; background: #f9f9f9; padding: 20px; }
+                        h2 { color: #333; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+                        th { background-color: #eee; }
+                        .pass { color: green; font-weight: bold; }
+                        .fail { color: red; font-weight: bold; }
+                        .skipped { color: orange; font-weight: bold; }
+                        ul { background: #fff0f0; padding: 10px; border-radius: 5px; }
+                        .summary { background: #f0f0f0; padding: 10px; margin-top: 10px; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                """);
+
+            writer.write("<h2>Allure Style Regression Report</h2>\n");
+            writer.write("<div class='summary'>\n");
+            writer.write("<p><strong>Execution Date:</strong> " + executionDate + "</p>\n");
+            writer.write("<p><strong>Total Tests:</strong> " + total +
+                         " | <strong>Passed:</strong> " + passed +
+                         " | <strong>Failed:</strong> " + failed +
+                         " | <strong>Skipped:</strong> " + skipped + "</p>\n");
+            writer.write("<p><strong>Duration:</strong> " + duration + "</p>\n");
+            writer.write("<p><strong>Services:</strong> " + String.join(", ", uniqueServices) + "</p>\n");
+            writer.write("</div>\n");
+
+            writer.write("""
+                <table>
+                  <tr>
+                    <th>Service</th><th>Test Case</th><th>Status</th><th>Time</th>
+                  </tr>
+                """);
+
+            for (TestCase t : testCases) {
+                String statusClass = switch (t.status.toUpperCase()) {
+                    case "PASS" -> "pass";
+                    case "FAIL" -> "fail";
+                    case "SKIPPED" -> "skipped";
+                    default -> "";
+                };
+                writer.write("<tr>");
+                writer.write("<td>" + t.service + "</td>");
+                writer.write("<td>" + t.testCase + "</td>");
+                writer.write("<td class='" + statusClass + "'>" + t.status + "</td>");
+                writer.write("<td>" + t.time + "</td>");
+                writer.write("</tr>\n");
+            }
+
+            writer.write("</table>\n");
+
+            writer.write("<h3>Failure Summary</h3>\n<ul>\n");
+            if (failureSummary.isEmpty()) {
+                writer.write("<li>None 🎉</li>\n");
+            } else {
+                for (String f : failureSummary) {
+                    writer.write("<li>" + f + "</li>\n");
+                }
+            }
+            writer.write("</ul>\n");
+
+            writer.write("</body></html>");
+            System.out.println("✅ HTML report generated: " + fileName);
+
+        } catch (IOException e) {
+            System.err.println("❌ Failed to generate HTML report: " + e.getMessage());
+        }
+    }
+
+    public static void generateTextReport(List<TestCase> testCases, String fileName) {
+        int total = testCases.size();
+        int passed = 0, failed = 0, skipped = 0;
+        Set<String> uniqueServices = new TreeSet<>();
+        List<String> failureSummary = new ArrayList<>();
+
+        for (TestCase t : testCases) {
+            uniqueServices.add(t.service);
+            switch (t.status.toUpperCase()) {
+                case "PASS" -> passed++;
+                case "FAIL" -> {
+                    failed++;
+                    failureSummary.add("- " + t.testCase + ": " + t.failureReason);
+                }
+                case "SKIPPED" -> skipped++;
+            }
+        }
+
+        String executionDate = LocalDate.now().toString();
+        String duration = "2m 12s"; // mock duration
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write("|       ALLURE REPORT - REGRESSION TEST REPORT           |\n");
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write(String.format("| Total Tests: %-4d Passed: %-4d Failed: %-3d Skipped: %-3d         |\n", total, passed, failed, skipped));
+            writer.write(String.format("| Services Tested: %s         |\n", String.join(", ", uniqueServices)));
+            writer.write(String.format("| Execution Date: %-10s | Duration: %-8s         |\n", executionDate, duration));
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write(String.format("| %-15s | %-25s | %-6s | %-6s |\n", "Service", "Test Case", "Status", "Time"));
+            writer.write("|-----------------|--------------------------|--------|--------|\n");
+
+            for (TestCase t : testCases) {
+                writer.write(String.format("| %-15s | %-25s | %-6s | %-6s |\n",
+                        t.service, truncate(t.testCase, 25), t.status, t.time));
+            }
+
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write("| Failure Summary:                                        |\n");
+            if (failureSummary.isEmpty()) {
+                writer.write("| - None                                                  |\n");
+            } else {
+                for (String f : failureSummary) {
+                    writer.write(String.format("| %-55s |\n", truncate(f, 55)));
+                }
+            }
+            writer.write("+---------------------------------------------------------+\n");
+
+            System.out.println("✅ Text report generated: " + fileName);
+        } catch (IOException e) {
+            System.err.println("❌ Failed to generate text report: " + e.getMessage());
+        }
+    }
+
+    private static String truncate(String str, int maxLength) {
+        if (str.length() <= maxLength) return str;
+        return str.substring(0, maxLength - 3) + "...";
+    }
+}
