@@ -1,0 +1,214 @@
+JAVA CODE:
+String dbUrl = "jdbc:mysql://new-host:3306/newdb";
+String scriptPath = "/opt/scripts/restart-services.sh";
+
+ProcessBuilder pb = new ProcessBuilder(scriptPath, dbUrl);
+pb.inheritIO(); // optional: to see logs in Java console
+Process process = pb.start();
+int exitCode = process.waitFor();
+System.out.println("Script exited with code: " + exitCode);
+
+
+
+JAVA CODE:
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.*;
+
+public class RegressionReportGenerator {
+
+    static class TestResult {
+        String serviceName;
+        String endpoint;
+        String method;
+        String status;
+        String remarks;
+
+        public TestResult(String serviceName, String method, String endpoint, String status, String remarks) {
+            this.serviceName = serviceName;
+            this.endpoint = endpoint;
+            this.method = method;
+            this.status = status;
+            this.remarks = remarks;
+        }
+    }
+
+    public static void main(String[] args) {
+        // Step 1: Create dummy test results
+        List<TestResult> results = Arrays.asList(
+            new TestResult("user-service", "GET", "/api/users", "PASS", "-"),
+            new TestResult("user-service", "POST", "/api/users", "FAIL", "500 Internal Server Error"),
+            new TestResult("order-service", "GET", "/api/orders", "PASS", "-"),
+            new TestResult("inventory-service", "GET", "/api/stock", "PASS", "-")
+        );
+
+        // Step 2: Group by service
+        Map<String, List<TestResult>> groupedResults = new LinkedHashMap<>();
+        for (TestResult result : results) {
+            groupedResults.computeIfAbsent(result.serviceName, k -> new ArrayList<>()).add(result);
+        }
+
+        // Step 3: Generate report
+        String fileName = "regression-report.txt";
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            int total = 0, passed = 0, failed = 0;
+
+            writer.write("--- Regression Test Report (" + LocalDate.now() + ") ---\n\n");
+
+            for (Map.Entry<String, List<TestResult>> entry : groupedResults.entrySet()) {
+                writer.write("✅ " + entry.getKey() + "\n");
+
+                for (TestResult r : entry.getValue()) {
+                    writer.write("   - " + r.method + " " + r.endpoint + " --> " + r.status);
+                    if (r.status.equalsIgnoreCase("FAIL")) {
+                        writer.write(" (" + r.remarks + ")");
+                    }
+                    writer.newLine();
+
+                    total++;
+                    if ("PASS".equalsIgnoreCase(r.status)) passed++;
+                    else failed++;
+                }
+                writer.newLine();
+            }
+
+            writer.write("Summary:\n");
+            writer.write("Total: " + total + " | Passed: " + passed + " | Failed: " + failed + "\n");
+
+            System.out.println("✅ Report generated: " + fileName);
+
+        } catch (IOException e) {
+            System.err.println("❌ Failed to write report: " + e.getMessage());
+        }
+    }
+}
+
+
+
+
+TEMPALTE:
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.*;
+
+public class AllureStyleReportGenerator {
+
+    static class TestCase {
+        String service;
+        String testCase;
+        String status;
+        String time;
+        String failureReason;
+
+        public TestCase(String service, String testCase, String status, String time, String failureReason) {
+            this.service = service;
+            this.testCase = testCase;
+            this.status = status;
+            this.time = time;
+            this.failureReason = failureReason;
+        }
+    }
+
+    public static void main(String[] args) {
+        List<TestCase> testCases = Arrays.asList(
+            new TestCase("service-a", "/api/users health check", "PASS", "120ms", null),
+            new TestCase("service-a", "/api/users get all", "PASS", "320ms", null),
+            new TestCase("service-b", "/api/orders create", "FAIL", "540ms", "Expected 201 but got 500"),
+            new TestCase("service-c", "/api/inventory check", "PASS", "210ms", null),
+            new TestCase("service-b", "/api/orders validation failed", "FAIL", "330ms", "Missing customer_id"),
+            new TestCase("service-c", "/api/inventory refresh", "SKIPPED", "0ms", null)
+        );
+
+        generateReport(testCases, "allure-regression-report.txt");
+    }
+
+    public static void generateReport(List<TestCase> testCases, String fileName) {
+        int total = testCases.size();
+        int passed = 0, failed = 0, skipped = 0;
+
+        Set<String> uniqueServices = new TreeSet<>();
+        List<String> failureSummary = new ArrayList<>();
+
+        for (TestCase t : testCases) {
+            uniqueServices.add(t.service);
+            switch (t.status.toUpperCase()) {
+                case "PASS" -> passed++;
+                case "FAIL" -> {
+                    failed++;
+                    failureSummary.add("- " + t.testCase + ": " + t.failureReason);
+                }
+                case "SKIPPED" -> skipped++;
+            }
+        }
+
+        // Dummy duration
+        String duration = "2m 12s";
+        String executionDate = LocalDate.now().toString();
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(fileName))) {
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write("|       ALLURE REPORT - REGRESSION TEST REPORT           |\n");
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write(String.format("| Total Tests: %-4d Passed: %-4d Failed: %-3d Skipped: %-3d         |\n", total, passed, failed, skipped));
+            writer.write(String.format("| Services Tested: %s         |\n", String.join(", ", uniqueServices)));
+            writer.write(String.format("| Execution Date: %-10s | Duration: %-8s         |\n", executionDate, duration));
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write(String.format("| %-15s | %-25s | %-6s | %-6s |\n", "Service", "Test Case", "Status", "Time"));
+            writer.write("|-----------------|--------------------------|--------|--------|\n");
+
+            for (TestCase t : testCases) {
+                writer.write(String.format("| %-15s | %-25s | %-6s | %-6s |\n",
+                        t.service, truncate(t.testCase, 25), t.status, t.time));
+            }
+
+            writer.write("+---------------------------------------------------------+\n");
+            writer.write("| Failure Summary:                                        |\n");
+            if (failureSummary.isEmpty()) {
+                writer.write("| - None                                                  |\n");
+            } else {
+                for (String f : failureSummary) {
+                    writer.write(String.format("| %-55s |\n", truncate(f, 55)));
+                }
+            }
+            writer.write("+---------------------------------------------------------+\n");
+
+            System.out.println("✅ Report generated: " + fileName);
+        } catch (IOException e) {
+            System.err.println("❌ Failed to generate report: " + e.getMessage());
+        }
+    }
+
+    private static String truncate(String str, int maxLength) {
+        if (str.length() <= maxLength) return str;
+        return str.substring(0, maxLength - 3) + "...";
+    }
+}
+
+
+
+
+FILE:
++---------------------------------------------------------+
+|       ALLURE REPORT - REGRESSION TEST REPORT           |
++---------------------------------------------------------+
+| Total Tests: 6     Passed: 3     Failed: 2     Skipped: 1         |
+| Services Tested: service-a, service-b, service-c         |
+| Execution Date: 2025-06-28 | Duration: 2m 12s           |
++---------------------------------------------------------+
+| Service         | Test Case               | Status | Time   |
+|-----------------|--------------------------|--------|--------|
+| service-a       | /api/users health check  | PASS   | 120ms |
+| service-a       | /api/users get all       | PASS   | 320ms |
+| service-b       | /api/orders create       | FAIL   | 540ms |
+| service-c       | /api/inventory check     | PASS   | 210ms |
+| service-b       | /api/orders validation...| FAIL   | 330ms |
+| service-c       | /api/inventory refresh   | SKIPPED| 0ms   |
++---------------------------------------------------------+
+| Failure Summary:                                        |
+| - /api/orders create: Expected 201 but got 500          |
+| - /api/orders validation failed: Missing customer_id    |
++---------------------------------------------------------+
